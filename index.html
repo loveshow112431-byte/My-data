@@ -1,0 +1,589 @@
+import React, { useState, useEffect } from 'react';
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
+import { getFirestore, collection, doc, onSnapshot, addDoc, deleteDoc, updateDoc } from 'firebase/firestore';
+import { 
+  Plus, Search, Trash2, User, Car, Calendar, 
+  Save, X, Loader2, Edit3, Flower2, Camera, 
+  Eye, CheckCircle, ListChecks, ChevronDown, 
+  Smartphone, Monitor, Sparkles, Heart, FileText, Package,
+  ShieldCheck, AlertCircle, Bell, Lightbulb, CheckCircle2, Share2, Check
+} from 'lucide-react';
+
+const firebaseConfig = JSON.parse(__firebase_config);
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'mina-customer-records';
+
+// 1. 汎翔百貨配件
+const GENERAL_PARTS = [
+  { id: 'hud', label: '抬頭顯示器', price: 2950 },
+  { id: 'doorLight', label: '車門警示燈', price: 1750 },
+  { id: 'visor2', label: '晴雨窗2片', price: 450 },
+  { id: 'visor4', label: '晴雨窗4片', price: 900 },
+  { id: 'reverseBuzzer', label: '倒車喇叭', price: 600 },
+  { id: 'boschHorn', label: 'BOSCH喇叭', price: 1900 },
+  { id: 'armrest', label: '扶手', price: 1650 },
+  { id: 'securitySys', label: '行車警示系統含速控', price: 2500 },
+  { id: 'mirrorFold', label: '後視鏡自動收折', price: 1700 },
+  { id: 'frontRadar', label: '前置雷達', price: 2100 },
+  { id: 'dashMat', label: '避光墊', price: 450 },
+  { id: 'footMat', label: '腳踏墊', price: 450 },
+  { id: 'trunkMat', label: '後箱墊', price: 450 },
+  { id: 'tray', label: '托盤', price: 650 },
+  { id: 'ashtray', label: '菸灰缸', price: 200 },
+  { id: 'ionizer', label: '氧負離子空氣清淨機', price: 850 },
+  { id: 'vacuum', label: '吸塵器', price: 500 },
+  { id: 'frontP70', label: '前檔 3M P70', price: 2000 },
+  { id: 'bodyP40', label: '車身 3M P40', price: 3000 },
+  { id: 'frontF70', label: '前檔 FSK 冰鑽 F70', price: 8400 },
+  { id: 'bodyF45', label: '車身 FSK 冰鑽 F70/F60/F45', price: 11550 },
+  { id: 'packageAll', label: '套裝 (HUD/速控/收折/車門燈/負離子)', price: 8500 },
+];
+
+// 2. 快譯通配件
+const ABEE_PARTS = [
+  { id: 'm638g', label: 'M638G 1080P+GPS測速', price: 4200 },
+  { id: 'm548gh', label: 'M548GH 星光夜視雙鏡頭', price: 5800 },
+  { id: 'm268s', label: 'M268S 前後1080P雙錄後視鏡', price: 4200 },
+  { id: 'hm22', label: 'HM22                     <FileText size={14}/> 備註事項                  </label>                  <textarea                     rows="4"                    className="w-full px-6 py-4 rounded-[24px] bg-[#FFF9F9] border-2 border-transparent focus:border-[#F2E1E1] outline-none transition-all resize-none placeholder:text-[#D9A5A5]/50 text-slate-600"                    placeholder="例如：贈送精品配件、特殊交車要求、客戶性格偏好等細節..."                    value={formData.notes}                    onChange={e => setFormData({...formData, notes: e.target.value})}                  ></textarea>                </div>              </div>              <div className="px-8 flex gap-5">                <button type="button" onClick={closeModal} className="flex-1 py-5 text-sm font-bold text-[#BCA0A0] bg-white border border-[#F2E1E1] rounded-3xl hover:bg-slate-50 transition-all">關閉視窗</button>                <button type="submit" disabled={saving} className="flex-[2] py-5 bg-[#C08282] hover:bg-[#A66C6C] text-white rounded-3xl font-bold shadow-xl shadow-rose-100 flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50">                  {saving ? <Loader2 className="animate-spin" size={20}/> : <Save size={20}/>}                  儲存客戶資料                </button>              </div>            </form>          </div>        </div>      )}      {previewImage && (        <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-8 animate-in fade-in" onClick={()=>setPreviewImage(null)}>          <button className="absolute top-10 right-10 text-white"><X size={40}/></button>          <img src={previewImage} className="max-w-full max-h-full object-contain rounded-xl shadow-2xl" />        </div>      )}    </div>  );}', price: 2200 },
+  { id: 'm988s', label: 'M988S 前後1080P全屏雙錄後視鏡', price: 7300 },
+  { id: 'm838gh', label: 'M838GH 前後2K(WIFI)雙錄記錄器', price: 7100 },
+  { id: 'm989s', label: 'M989S 前後2K+WIFI全貼合電子後視鏡', price: 8300 },
+];
+
+// 3. 影音品項
+const AUDIO_PARTS = [
+  { id: 'cardio1', label: 'CARDIO安卓10吋(2G-32G)+倒車', price: 14000 },
+  { id: 'cardio2', label: 'CARDIO安卓10吋(4G-32G)+倒車', price: 16500 },
+  { id: 'cardio3', label: 'CARDIO安卓10吋(4G-64G)+倒車', price: 18500 },
+  { id: 'cardio4', label: 'CARDIO安卓10吋(8G-128G)+倒車', price: 20500 },
+  { id: 'cardio360_1', label: 'CARDIO 10吋+360環景(4G-64G)', price: 22000 },
+  { id: 'cardio360_2', label: 'CARDIO 10吋+360環景(8G-128G)', price: 25000 },
+  { id: 'carplay360', label: '原廠CARPLAY主機+外掛環景360', price: 16000 },
+  { id: 'swift_touch', label: 'SWIFT專用觸控-原廠主機+環景360', price: 18000 },
+  { id: 'carplay_box', label: '原廠CARPLAY主機改安卓盒', price: 8000 },
+  { id: 'bsd_a', label: 'CARDIO盲點偵測系統-A柱貼片', price: 12000 },
+  { id: 'bsd_lens', label: 'CARDIO盲點偵測系統-專車專用鏡片', price: 13500 },
+];
+
+// 4. 配件外裝
+const EXTERIOR_PARTS = [
+  { id: 'ext_360', label: '360環景系統', price: 16000 },
+  { id: 'ext_android', label: '安卓機主機', price: 14000 },
+  { id: 'ext_bsd', label: '盲點偵測系統', price: 12000 },
+  { id: 'ext_dashmat', label: '避光墊', price: 450 },
+  { id: 'ext_tray', label: '托盤', price: 650 },
+];
+
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [customers, setCustomers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [currentCustomer, setCurrentCustomer] = useState(null);
+  const [activeTab, setActiveTab] = useState('general');
+  const [saving, setSaving] = useState(false);
+  const [previewImage, setPreviewImage] = useState(null);
+  const [copied, setCopied] = useState(false);
+
+  const carModels = ["Carry", "Jimny", "Swift", "Vitara", "SX4", "S-Cross", "e-Vitara", "其他"];
+  const insuranceCompanies = ["華南", "明台", "富邦", "國泰", "旺旺", "新光", "其他"];
+  
+  const initialFormState = {
+    name: '', phone: '', carModel: 'Swift', registrationDate: '',
+    has818Warranty: false, hasCommodityTax: false, hasTradeIn: false,
+    selectedAccessories: [], accessoriesTotal: 0,
+    licenseImg: '', registrationImg: '', orderImg: '', reportImg: '',
+    insuranceImg: '',
+    insuranceCompany: '',
+    insuranceDate: '',
+    insuranceHandled: false, // 是否已手動解除提醒
+    notes: ''
+  };
+
+  const [formData, setFormData] = useState(initialFormState);
+
+  // 判斷是否為即將續保客戶的邏輯 (只看月份，且未被手動標記為已處理)
+  const isNearRenewal = (customer) => {
+    if (!customer.insuranceDate || customer.insuranceHandled) return false;
+    
+    const expiry = new Date(customer.insuranceDate);
+    const today = new Date();
+    
+    const expiryMonth = expiry.getMonth(); 
+    const currentMonth = today.getMonth(); 
+    const nextMonth = (currentMonth + 1) % 12;
+    
+    return expiryMonth === currentMonth || expiryMonth === nextMonth;
+  };
+
+  useEffect(() => {
+    const initAuth = async () => {
+      if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+        await signInWithCustomToken(auth, __initial_auth_token);
+      } else {
+        await signInAnonymously(auth);
+      }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    const q = collection(db, 'artifacts', appId, 'public', 'data', 'customers');
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setCustomers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+      setLoading(false);
+    }, (err) => console.error(err));
+    return () => unsubscribe();
+  }, [user]);
+
+  // 頂部提醒清單：月份符合且未處理
+  const upcomingRenewals = customers.filter(c => isNearRenewal(c));
+
+  const toggleAccessory = (accId) => {
+    const isSelected = formData.selectedAccessories.includes(accId);
+    let newSelection = isSelected 
+      ? formData.selectedAccessories.filter(id => id !== accId) 
+      : [...formData.selectedAccessories, accId];
+    
+    const allAvailableParts = [...GENERAL_PARTS, ...ABEE_PARTS, ...AUDIO_PARTS, ...EXTERIOR_PARTS];
+    const newTotal = allAvailableParts
+      .filter(item => newSelection.includes(item.id))
+      .reduce((sum, item) => sum + item.price, 0);
+
+    setFormData({ ...formData, selectedAccessories: newSelection, accessoriesTotal: newTotal });
+  };
+
+  const handleImageUpload = (e, key) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => setFormData(p => ({ ...p, [key]: reader.result }));
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!user) return;
+    setSaving(true);
+    try {
+      const coll = collection(db, 'artifacts', appId, 'public', 'data', 'customers');
+      const payload = { ...formData, updatedAt: new Date().toISOString() };
+      if (currentCustomer) {
+        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'customers', currentCustomer.id), payload);
+      } else {
+        await addDoc(coll, { ...payload, createdAt: new Date().toISOString() });
+      }
+      closeModal();
+    } catch (e) { console.error(e); } finally { setSaving(false); }
+  };
+
+  const closeModal = () => { setIsModalOpen(false); setFormData(initialFormState); setCurrentCustomer(null); };
+  const formatCurrency = (v) => new Intl.NumberFormat('zh-TW').format(v || 0);
+
+  const handleShare = () => {
+    const dummy = document.createElement('input');
+    document.body.appendChild(dummy);
+    dummy.value = window.location.href;
+    dummy.select();
+    document.execCommand('copy');
+    document.body.removeChild(dummy);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="min-h-screen bg-[#FFF9F9] text-slate-600 font-sans pb-12">
+      <div className="fixed inset-0 pointer-events-none opacity-[0.05] overflow-hidden z-0">
+        <Flower2 size={500} className="absolute -top-32 -left-32 text-[#E6B1B1]" />
+        <Heart size={300} className="absolute top-1/2 -right-20 text-[#E6B1B1]" />
+        <Sparkles size={200} className="absolute bottom-10 left-10 text-[#E6B1B1]" />
+      </div>
+
+      <div className="relative z-10 max-w-7xl mx-auto px-4 py-8">
+        <header className="flex flex-col md:flex-row md:items-end justify-between mb-8 gap-6">
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-[#C08282]">
+              <Sparkles size={20} />
+              <span className="font-bold tracking-[0.2em] text-sm uppercase">Mina's Sales Archive</span>
+            </div>
+            <h1 className="text-4xl font-light text-[#5D4A4A]">米娜的 <span className="font-bold text-[#C08282]">客戶資料表</span></h1>
+          </div>
+          <div className="flex gap-3">
+            <button 
+              onClick={handleShare}
+              className="flex items-center gap-2 bg-white border-2 border-[#F2E1E1] hover:border-[#C08282] text-[#C08282] px-6 py-4 rounded-full shadow-sm transition-all active:scale-95"
+            >
+              {copied ? <Check size={20} /> : <Share2 size={20} />} 
+              <span className="font-bold">{copied ? '已複製連結！' : '分享給朋友'}</span>
+            </button>
+            <button 
+              onClick={() => { setFormData(initialFormState); setIsModalOpen(true); }}
+              className="flex items-center gap-2 bg-[#C08282] hover:bg-[#A66C6C] text-white px-8 py-4 rounded-full shadow-lg transition-all active:scale-95"
+            >
+              <Plus size={20} /> <span className="font-bold">新增客戶訂單</span>
+            </button>
+          </div>
+        </header>
+
+        {upcomingRenewals.length > 0 && (
+          <div className="mb-10 animate-in slide-in-from-top duration-500">
+            <div className="bg-rose-50 border-2 border-rose-200 rounded-[32px] p-8 shadow-xl shadow-rose-100 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-10">
+                <Lightbulb size={120} className="text-rose-500 animate-pulse" />
+              </div>
+
+              <div className="flex items-center gap-4 mb-6 relative z-10">
+                <div className="w-12 h-12 bg-rose-500 rounded-full flex items-center justify-center text-white animate-pulse">
+                   <Bell size={24} />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-black text-rose-700 tracking-tight">本月/下月 續保提醒！</h2>
+                  <p className="text-rose-600/80 font-bold">共有 {upcomingRenewals.length} 位待處理續保客戶</p>
+                </div>
+              </div>
+              
+              <div className="flex gap-5 overflow-x-auto pb-4 scrollbar-hide relative z-10">
+                {upcomingRenewals.map(c => (
+                  <div key={c.id} onClick={() => { setCurrentCustomer(c); setFormData(c); setIsModalOpen(true); }} className="min-w-[280px] bg-white p-5 rounded-[24px] shadow-md border-2 border-rose-100 cursor-pointer hover:border-rose-400 hover:shadow-lg transition-all transform hover:-translate-y-1 group">
+                    <div className="flex justify-between items-start mb-3">
+                      <p className="font-black text-lg text-slate-800 group-hover:text-rose-600 transition-colors">{c.name}</p>
+                      <Lightbulb size={18} className="text-rose-500 animate-bounce" />
+                    </div>
+                    <p className="text-sm text-slate-400 mb-3 flex items-center gap-1"><Smartphone size={14}/> {c.phone}</p>
+                    <div className="flex items-center justify-between">
+                      <span className="bg-rose-100 text-rose-700 px-3 py-1 rounded-full text-xs font-black">{c.insuranceCompany || '未填寫'}</span>
+                      <div className="text-right">
+                        <p className="text-[10px] text-rose-400 font-bold uppercase tracking-wider">到期月份</p>
+                        <p className="text-rose-600 font-black">{c.insuranceDate ? c.insuranceDate.substring(5) : '未知'}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="relative max-w-2xl mx-auto mb-16">
+          <div className="absolute left-6 top-1/2 -translate-y-1/2 text-[#D9A5A5]"><Search size={20}/></div>
+          <input 
+            type="text" 
+            placeholder="搜尋姓名、車型、日期或保險公司..." 
+            className="w-full pl-16 pr-8 py-5 bg-white rounded-full border border-[#F2E1E1] shadow-md focus:outline-none focus:border-[#C08282] transition-all text-lg"
+            value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
+          />
+        </div>
+
+        {loading ? (
+          <div className="flex justify-center py-20"><Loader2 className="animate-spin text-[#C08282]" size={40}/></div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {customers.filter(c => 
+              (c.name || '').includes(searchTerm) || 
+              (c.carModel || '').includes(searchTerm) || 
+              (c.registrationDate || '').includes(searchTerm) ||
+              (c.insuranceCompany || '').includes(searchTerm)
+            ).map(c => {
+              const isWarning = isNearRenewal(c);
+              const isHandled = c.insuranceHandled;
+
+              return (
+                <div key={c.id} className={`bg-white rounded-[32px] border-2 ${isWarning ? 'border-rose-300 shadow-rose-50' : isHandled ? 'border-emerald-100' : 'border-[#F2E1E1]'} hover:border-[#C08282] hover:shadow-xl transition-all overflow-hidden group relative`}>
+                  {isWarning && (
+                    <div className="absolute top-4 right-4 z-20">
+                      <div className="bg-rose-500 text-white px-3 py-1 rounded-full text-[10px] font-black flex items-center gap-1 animate-pulse shadow-lg shadow-rose-200">
+                        <Lightbulb size={12} fill="white" />
+                        月份到期
+                      </div>
+                    </div>
+                  )}
+
+                  {isHandled && !isWarning && (
+                    <div className="absolute top-4 right-4 z-20">
+                      <div className="bg-emerald-500 text-white px-3 py-1 rounded-full text-[10px] font-black flex items-center gap-1 shadow-md">
+                        <CheckCircle2 size={12} />
+                        已續保
+                      </div>
+                    </div>
+                  )}
+                  
+                  <div className="p-8">
+                    <div className="flex justify-between items-start mb-6">
+                      <div>
+                        <h3 className={`text-xl font-bold ${isWarning ? 'text-rose-700' : 'text-[#5D4A4A]'}`}>{c.name || '未填寫'}</h3>
+                        <p className="text-sm font-medium text-[#BCA0A0]">{c.phone}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <button onClick={()=> { setCurrentCustomer(c); setFormData(c); setIsModalOpen(true); }} className={`p-2 ${isWarning ? 'bg-rose-500 text-white' : 'bg-rose-50 text-[#C08282]'} rounded-full shadow-sm`}><Edit3 size={18}/></button>
+                        <button onClick={()=> { if(confirm('確定刪除？')) deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'customers', c.id)) }} className="p-2 bg-slate-50 text-slate-300 hover:text-rose-500 rounded-full"><Trash2 size={18}/></button>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      <div className="p-3 bg-[#FFF9F9] rounded-2xl border border-[#F2E1E1]">
+                        <p className="text-[10px] text-[#BCA0A0] font-bold uppercase tracking-wider">車型</p>
+                        <p className="font-bold text-[#6D5B5B]">{c.carModel}</p>
+                      </div>
+                      <div className="p-3 bg-[#FFF9F9] rounded-2xl border border-[#F2E1E1]">
+                        <p className="text-[10px] text-[#BCA0A0] font-bold uppercase tracking-wider">領牌日期</p>
+                        <p className="font-bold text-[#6D5B5B] text-xs">{c.registrationDate || '未定'}</p>
+                      </div>
+                    </div>
+
+                    <div className={`mb-6 p-4 rounded-2xl border flex items-center justify-between ${isWarning ? 'bg-rose-50 border-rose-100' : isHandled ? 'bg-emerald-50 border-emerald-100' : 'bg-slate-50 border-slate-100'}`}>
+                      <div className="flex items-center gap-2">
+                        {isHandled ? <CheckCircle2 size={16} className="text-emerald-500" /> : <ShieldCheck size={16} className={isWarning ? "text-rose-500" : "text-blue-400"} />}
+                        <div>
+                          <p className={`text-[9px] font-bold uppercase ${isWarning ? 'text-rose-400' : isHandled ? 'text-emerald-400' : 'text-slate-400'}`}>保險到期月</p>
+                          <p className={`text-xs font-black ${isWarning ? 'text-rose-600' : isHandled ? 'text-emerald-600' : 'text-slate-600'}`}>
+                            {c.insuranceDate ? c.insuranceDate.substring(5) : '尚未設定'}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-lg border ${isWarning ? 'bg-rose-100 border-rose-200 text-rose-700' : isHandled ? 'bg-emerald-100 border-emerald-200 text-emerald-700' : 'bg-white border-slate-200 text-slate-500'}`}>
+                        {c.insuranceCompany || '無'}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between items-end">
+                      <div className="flex flex-wrap gap-1.5 max-w-[60%]">
+                        {c.has818Warranty && <span className="text-[9px] bg-rose-50 text-[#C08282] px-2 py-0.5 rounded-full border border-rose-100 font-bold">818延長保固</span>}
+                        {c.hasCommodityTax && <span className="text-[9px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full border border-amber-100 font-bold">貨物稅補助</span>}
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[10px] text-[#BCA0A0] font-bold">配件總計</p>
+                        <p className="text-xl font-black text-[#C08282]">${formatCurrency(c.accessoriesTotal)}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-[#5D4A4A]/30 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-white w-full max-w-5xl rounded-[40px] shadow-2xl overflow-hidden my-auto animate-in fade-in zoom-in duration-300">
+            <div className="px-10 py-6 border-b border-[#F2E1E1] flex justify-between items-center bg-[#FFF9F9]">
+              <div className="flex items-center gap-2 text-[#5D4A4A]">
+                <Heart className="text-[#C08282]" size={20} fill="#C08282" />
+                <h2 className="text-xl font-bold">客戶紀錄編輯</h2>
+              </div>
+              <button onClick={closeModal} className="text-slate-400 hover:text-[#C08282] transition-colors"><X size={24}/></button>
+            </div>
+
+            <form onSubmit={handleSubmit} className="max-h-[85vh] overflow-y-auto pb-10">
+              <div className="p-8 space-y-10">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-[#BCA0A0] uppercase tracking-widest ml-1">客戶姓名</label>
+                    <input required className="w-full px-5 py-3.5 rounded-2xl bg-[#FFF9F9] border-2 border-transparent focus:border-[#F2E1E1] outline-none" value={formData.name} onChange={e=>setFormData({...formData, name:e.target.value})} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-[#BCA0A0] uppercase tracking-widest ml-1">聯絡電話</label>
+                    <input className="w-full px-5 py-3.5 rounded-2xl bg-[#FFF9F9] border-2 border-transparent focus:border-[#F2E1E1] outline-none" value={formData.phone} onChange={e=>setFormData({...formData, phone:e.target.value})} />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-[#BCA0A0] uppercase tracking-widest ml-1">車型</label>
+                    <div className="relative">
+                      <select className="w-full px-5 py-3.5 rounded-2xl bg-[#FFF9F9] outline-none appearance-none" value={formData.carModel} onChange={e=>setFormData({...formData, carModel:e.target.value})}>
+                        {carModels.map(m => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                      <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-[#C08282]" size={18}/>
+                    </div>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-[#C08282] uppercase tracking-widest ml-1">領牌日期</label>
+                    <input type="date" className="w-full px-5 py-3.5 rounded-2xl bg-[#FFF9F9] border-2 border-transparent focus:border-[#F2E1E1] outline-none" value={formData.registrationDate} onChange={e=>setFormData({...formData, registrationDate:e.target.value})} />
+                  </div>
+                </div>
+
+                <div className="bg-blue-50/50 p-6 rounded-[32px] border border-blue-100">
+                  <div className="flex items-center justify-between mb-4 text-[#5D4A4A]">
+                    <div className="flex items-center gap-2">
+                      <ShieldCheck size={18} className="text-blue-500" />
+                      <h3 className="font-bold text-sm tracking-widest uppercase">保險與續保設定</h3>
+                    </div>
+                    
+                    {/* 手動解除提醒的勾選框 */}
+                    <label className="flex items-center gap-2 cursor-pointer group">
+                      <div className={`w-10 h-6 rounded-full p-1 transition-colors ${formData.insuranceHandled ? 'bg-emerald-500' : 'bg-slate-200'}`}>
+                        <div className={`w-4 h-4 bg-white rounded-full transition-transform ${formData.insuranceHandled ? 'translate-x-4' : 'translate-x-0'}`}></div>
+                      </div>
+                      <input 
+                        type="checkbox" 
+                        className="hidden" 
+                        checked={formData.insuranceHandled || false} 
+                        onChange={e => setFormData({...formData, insuranceHandled: e.target.checked})}
+                      />
+                      <span className={`text-xs font-bold ${formData.insuranceHandled ? 'text-emerald-600' : 'text-slate-400'}`}>
+                        {formData.insuranceHandled ? '本年度已處理 (提醒已解除)' : '標記為本年度已處理'}
+                      </span>
+                    </label>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-[#BCA0A0] uppercase tracking-widest ml-1">投保保險公司</label>
+                      <div className="relative">
+                        <select 
+                          className="w-full px-5 py-3.5 rounded-2xl bg-white border-2 border-transparent focus:border-blue-200 outline-none appearance-none" 
+                          value={formData.insuranceCompany} 
+                          onChange={e=>setFormData({...formData, insuranceCompany:e.target.value})}
+                        >
+                          <option value="">請選擇保險公司</option>
+                          {insuranceCompanies.map(company => <option key={company} value={company}>{company}</option>)}
+                        </select>
+                        <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-blue-400 pointer-events-none" size={18}/>
+                      </div>
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[10px] font-black text-rose-400 uppercase tracking-widest ml-1">保險到期月份 (每年重複提醒)</label>
+                      <input type="date" className="w-full px-5 py-3.5 rounded-2xl bg-white border-2 border-transparent focus:border-blue-200 outline-none font-bold text-rose-500" value={formData.insuranceDate} onChange={e=>setFormData({...formData, insuranceDate:e.target.value})} />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {[
+                    { key: 'has818Warranty', label: '818延長保固', sub: '8年18萬公里', color: 'rose' },
+                    { key: 'hasCommodityTax', label: '貨物稅退稅', sub: '5萬元補助款', color: 'amber' },
+                    { key: 'hasTradeIn', label: '報廢舊換新', sub: '汰舊換新補助', color: 'slate' }
+                  ].map(item => (
+                    <label key={item.key} className={`flex items-center gap-4 cursor-pointer p-5 rounded-3xl border-2 transition-all ${formData[item.key] ? `bg-${item.color}-50 border-[#F2E1E1]` : 'bg-white border-slate-50'}`}>
+                      <input type="checkbox" className="w-6 h-6 rounded-lg border-[#F2E1E1] text-[#C08282] focus:ring-0" checked={formData[item.key]} onChange={e=>setFormData({...formData, [item.key]:e.target.checked})} />
+                      <div className="flex flex-col">
+                        <span className={`text-sm font-bold ${formData[item.key] ? 'text-slate-700' : 'text-slate-400'}`}>{item.label}</span>
+                        <span className="text-[10px] text-[#BCA0A0] font-medium">{item.sub}</span>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="px-8 pb-10">
+                <div className="bg-[#FFF9F9] rounded-[40px] border border-[#F2E1E1] overflow-hidden shadow-sm">
+                  <div className="flex p-2 gap-1 bg-[#FDF2F2]">
+                    {[
+                      { id: 'general', label: '百貨配件', icon: <ListChecks size={16}/> },
+                      { id: 'exterior', label: '配件外裝', icon: <Package size={16}/> },
+                      { id: 'abee', label: '快譯通專區', icon: <Smartphone size={16}/> },
+                      { id: 'audio', label: '影音電裝', icon: <Monitor size={16}/> }
+                    ].map(tab => (
+                      <button 
+                        key={tab.id} type="button" 
+                        onClick={() => setActiveTab(tab.id)}
+                        className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl text-xs font-bold transition-all ${activeTab === tab.id ? 'bg-white text-[#C08282] shadow-sm' : 'text-[#BCA0A0] hover:bg-white/50'}`}
+                      >
+                        {tab.icon} {tab.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div className="p-8">
+                    <div className="flex justify-between items-center mb-8">
+                      <p className="text-xs font-bold text-[#C08282] tracking-wider flex items-center gap-2"><Sparkles size={14}/> 配件選單</p>
+                      <div className="px-6 py-2.5 bg-white rounded-2xl border border-[#F2E1E1] flex items-center gap-3">
+                        <span className="text-[10px] font-bold text-[#BCA0A0]">已選配件</span>
+                        <span className="text-2xl font-black text-[#C08282]">${formatCurrency(formData.accessoriesTotal)}</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-4">
+                      {(
+                        activeTab === 'general' ? GENERAL_PARTS : 
+                        activeTab === 'exterior' ? EXTERIOR_PARTS : 
+                        activeTab === 'abee' ? ABEE_PARTS : 
+                        AUDIO_PARTS
+                      ).map(acc => (
+                        <label key={acc.id} className={`flex items-center justify-between p-4 rounded-2xl cursor-pointer border-2 transition-all ${formData.selectedAccessories.includes(acc.id) ? 'bg-[#C08282] text-white border-[#C08282] shadow-md' : 'bg-white text-slate-500 border-transparent hover:border-[#F2E1E1]'}`}>
+                          <div className="flex items-center gap-3">
+                            <input type="checkbox" className="hidden" checked={formData.selectedAccessories.includes(acc.id)} onChange={() => toggleAccessory(acc.id)} />
+                            {formData.selectedAccessories.includes(acc.id) ? <CheckCircle size={20} fill="white" className="text-[#C08282]"/> : <div className="w-5 h-5 border-2 border-[#F2E1E1] rounded-full"></div>}
+                            <span className="text-sm font-semibold">{acc.label}</span>
+                          </div>
+                          <span className={`text-xs font-bold ${formData.selectedAccessories.includes(acc.id) ? 'text-rose-100' : 'text-[#BCA0A0]'}`}>${formatCurrency(acc.price)}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="px-8 pb-10 grid grid-cols-2 sm:grid-cols-5 gap-5">
+                {[
+                  { key: 'licenseImg', label: '客戶行照' },
+                  { key: 'registrationImg', label: '領牌登記書' },
+                  { key: 'orderImg', label: '配件訂購單' },
+                  { key: 'reportImg', label: '交易報告書' },
+                  { key: 'insuranceImg', label: '電子保險證' }
+                ].map(d => (
+                  <div key={d.key} className="space-y-3 text-center">
+                    <div className="relative aspect-[3/4] bg-[#FFF9F9] rounded-3xl border-2 border-dashed border-[#F2E1E1] flex items-center justify-center overflow-hidden cursor-pointer group shadow-sm transition-all hover:border-[#C08282]">
+                      {formData[d.key] ? (
+                        <>
+                          <img src={formData[d.key]} className="w-full h-full object-cover transition-transform group-hover:scale-110" />
+                          <div className="absolute inset-0 bg-black/30 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                            <button type="button" onClick={()=>setPreviewImage(formData[d.key])} className="p-3 bg-white rounded-full text-[#C08282]"><Eye size={18}/></button>
+                            <button type="button" onClick={()=>setFormData({...formData, [d.key]:''})} className="p-3 bg-white rounded-full text-rose-400"><Trash2 size={18}/></button>
+                          </div>
+                        </>
+                      ) : (
+                        <label className="w-full h-full flex flex-col items-center justify-center gap-2 cursor-pointer">
+                          <Camera size={24} className="text-[#C08282]"/>
+                          <span className="text-[10px] text-[#BCA0A0] font-black tracking-widest uppercase">上傳影像</span>
+                          <input type="file" accept="image/*" className="hidden" onChange={e => handleImageUpload(e, d.key)} />
+                        </label>
+                      )}
+                    </div>
+                    <span className="text-xs font-bold text-[#6D5B5B]">{d.label}</span>
+                  </div>
+                ))}
+              </div>
+
+              <div className="px-8 pb-10">
+                <div className="space-y-3">
+                  <label className="text-[10px] font-black text-[#C08282] uppercase tracking-widest ml-1 flex items-center gap-2">
+                    <FileText size={14}/> 備註事項
+                  </label>
+                  <textarea 
+                    rows="4"
+                    className="w-full px-6 py-4 rounded-[24px] bg-[#FFF9F9] border-2 border-transparent focus:border-[#F2E1E1] outline-none transition-all resize-none placeholder:text-[#D9A5A5]/50 text-slate-600"
+                    placeholder="例如：贈送精品配件、特殊交車要求、客戶性格偏好等細節..."
+                    value={formData.notes}
+                    onChange={e => setFormData({...formData, notes: e.target.value})}
+                  ></textarea>
+                </div>
+              </div>
+
+              <div className="px-8 flex gap-5">
+                <button type="button" onClick={closeModal} className="flex-1 py-5 text-sm font-bold text-[#BCA0A0] bg-white border border-[#F2E1E1] rounded-3xl hover:bg-slate-50 transition-all">關閉視窗</button>
+                <button type="submit" disabled={saving} className="flex-[2] py-5 bg-[#C08282] hover:bg-[#A66C6C] text-white rounded-3xl font-bold shadow-xl shadow-rose-100 flex items-center justify-center gap-3 transition-all active:scale-95 disabled:opacity-50">
+                  {saving ? <Loader2 className="animate-spin" size={20}/> : <Save size={20}/>}
+                  儲存客戶資料
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {previewImage && (
+        <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-8 animate-in fade-in" onClick={()=>setPreviewImage(null)}>
+          <button className="absolute top-10 right-10 text-white"><X size={40}/></button>
+          <img src={previewImage} className="max-w-full max-h-full object-contain rounded-xl shadow-2xl" />
+        </div>
+      )}
+    </div>
+  );
+}
